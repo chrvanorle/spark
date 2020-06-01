@@ -44,7 +44,8 @@ private[spark] class CoarseGrainedExecutorBackend(
     hostname: String,
     cores: Int,
     userClassPath: Seq[URL],
-    env: SparkEnv)
+    env: SparkEnv,
+    isAlpha: Boolean)
   extends ThreadSafeRpcEndpoint with ExecutorBackend with Logging {
 
   private[this] val stopping = new AtomicBoolean(false)
@@ -77,10 +78,10 @@ private[spark] class CoarseGrainedExecutorBackend(
   }
 
   override def receive: PartialFunction[Any, Unit] = {
-    case RegisteredExecutor =>
+    case RegisteredExecutor(appId) =>
       logInfo("Successfully registered with driver")
       try {
-        executor = new Executor(executorId, hostname, env, userClassPath, isLocal = false)
+        executor = new Executor(executorId, hostname, env, userClassPath, isLocal = false, appId = appId, isAlpha = isAlpha)
       } catch {
         case NonFatal(e) =>
           exitExecutor(1, "Unable to create executor due to " + e.getMessage, e)
@@ -181,7 +182,8 @@ private[spark] object CoarseGrainedExecutorBackend extends Logging {
       cores: Int,
       appId: String,
       workerUrl: Option[String],
-      userClassPath: Seq[URL]) {
+      userClassPath: Seq[URL],
+      isAlpha: Boolean = false) {
 
     Utils.initDaemon(log)
 
@@ -224,7 +226,7 @@ private[spark] object CoarseGrainedExecutorBackend extends Logging {
         driverConf, executorId, hostname, port, cores, cfg.ioEncryptionKey, isLocal = false)
 
       env.rpcEnv.setupEndpoint("Executor", new CoarseGrainedExecutorBackend(
-        env.rpcEnv, driverUrl, executorId, hostname, cores, userClassPath, env))
+        env.rpcEnv, driverUrl, executorId, hostname, cores, userClassPath, env, isAlpha))
       workerUrl.foreach { url =>
         env.rpcEnv.setupEndpoint("WorkerWatcher", new WorkerWatcher(env.rpcEnv, url))
       }
@@ -241,7 +243,9 @@ private[spark] object CoarseGrainedExecutorBackend extends Logging {
     var appId: String = null
     var workerUrl: Option[String] = None
     val userClassPath = new mutable.ListBuffer[URL]()
-
+    
+    var isAlpha: Boolean = false
+    
     var argv = args.toList
     while (!argv.isEmpty) {
       argv match {
@@ -267,6 +271,9 @@ private[spark] object CoarseGrainedExecutorBackend extends Logging {
         case ("--user-class-path") :: value :: tail =>
           userClassPath += new URL(value)
           argv = tail
+        case ("--is-alpha") :: value :: tail =>
+          isAlpha = true
+          argv = tail
         case Nil =>
         case tail =>
           // scalastyle:off println
@@ -281,7 +288,7 @@ private[spark] object CoarseGrainedExecutorBackend extends Logging {
       printUsageAndExit()
     }
 
-    run(driverUrl, executorId, hostname, cores, appId, workerUrl, userClassPath)
+    run(driverUrl, executorId, hostname, cores, appId, workerUrl, userClassPath, isAlpha = isAlpha)
     System.exit(0)
   }
 

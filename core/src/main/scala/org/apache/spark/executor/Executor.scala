@@ -42,6 +42,7 @@ import org.apache.spark.shuffle.FetchFailedException
 import org.apache.spark.storage.{StorageLevel, TaskResultBlockId}
 import org.apache.spark.util._
 import org.apache.spark.util.io.ChunkedByteBuffer
+import java.io.PrintWriter
 
 /**
  * Spark executor, backed by a threadpool to run tasks.
@@ -51,15 +52,17 @@ import org.apache.spark.util.io.ChunkedByteBuffer
  * except in the case of Mesos fine-grained mode.
  */
 private[spark] class Executor(
-    executorId: String,
-    executorHostname: String,
-    env: SparkEnv,
-    userClassPath: Seq[URL] = Nil,
-    isLocal: Boolean = false,
-    uncaughtExceptionHandler: UncaughtExceptionHandler = SparkUncaughtExceptionHandler)
+  executorId:               String,
+  executorHostname:         String,
+  env:                      SparkEnv,
+  userClassPath:            Seq[URL]                 = Nil,
+  isLocal:                  Boolean                  = false,
+  uncaughtExceptionHandler: UncaughtExceptionHandler = SparkUncaughtExceptionHandler,
+  appId:                    String,
+  isAlpha:                  Boolean                  = false)
   extends Logging {
 
-  logInfo(s"Starting executor ID $executorId on host $executorHostname")
+  logInfo(s"Starting executor ID $executorId on host $executorHostname, isAlpha = $isAlpha")
 
   // Application dependencies (added through SparkContext) that we've fetched so far on this node.
   // Each map holds the master's timestamp for the version of that file or JAR we got.
@@ -85,6 +88,11 @@ private[spark] class Executor(
     Thread.setDefaultUncaughtExceptionHandler(uncaughtExceptionHandler)
   }
 
+  val SPARK_HOME = System.getenv().get("SPARK_HOME")
+  val RESULT_HOME = System.getenv().get("RESULT_HOME")
+  val SCRIPT_HOME = s"$SPARK_HOME/scripts"
+  writeFullAppName();
+
   // Start worker thread pool
   private val threadPool = {
     val threadFactory = new ThreadFactoryBuilder()
@@ -100,6 +108,18 @@ private[spark] class Executor(
       .build()
     Executors.newCachedThreadPool(threadFactory).asInstanceOf[ThreadPoolExecutor]
   }
+
+  def sanitizeString(s: String): String = {
+    return s.replace(" ", "_").replace(",", "_").replace("(", "_").replace(")", "_").replace("/", "_")
+  }
+
+  def writeFullAppName() {
+    val appName = sanitizeString(getAppName())
+    val appId = getAppId()
+    val completeName = s"$appName^$appId"
+    new PrintWriter(s"$RESULT_HOME/$completeName.appname") { write("empty"); close }
+  }
+
   private val executorSource = new ExecutorSource(threadPool, executorId)
   // Pool used for threads that supervise task killing / cancellation
   private val taskReaperPool = ThreadUtils.newDaemonCachedThreadPool("Task reaper")
@@ -228,9 +248,21 @@ private[spark] class Executor(
     ManagementFactory.getGarbageCollectorMXBeans.asScala.map(_.getCollectionTime).sum
   }
 
+  def getAppId(): String = {
+    appId
+  }
+
+  def getAppName(): String = {
+    conf.get("spark.app.name")
+  }
+
+  def getExecutorId(): String = {
+    executorId
+  }
+
   class TaskRunner(
-      execBackend: ExecutorBackend,
-      private val taskDescription: TaskDescription)
+    execBackend:                 ExecutorBackend,
+    private val taskDescription: TaskDescription)
     extends Runnable {
 
     val taskId = taskDescription.taskId
@@ -243,6 +275,10 @@ private[spark] class Executor(
     @volatile private var threadId: Long = -1
 
     def getThreadId: Long = threadId
+
+    def getStageId(): Int = {
+      taskDescription.stageId
+    }
 
     /** Whether this task has been finished. */
     @GuardedBy("TaskRunner.this")
@@ -443,8 +479,7 @@ private[spark] class Executor(
           setTaskFinishedAndClearInterruptStatus()
           execBackend.statusUpdate(taskId, TaskState.KILLED, ser.serialize(TaskKilled(t.reason)))
 
-        case _: InterruptedException | NonFatal(_) if
-            task != null && task.reasonIfKilled.isDefined =>
+        case _: InterruptedException | NonFatal(_) if task != null && task.reasonIfKilled.isDefined =>
           val killReason = task.reasonIfKilled.getOrElse("unknown reason")
           logInfo(s"Executor interrupted and killed $taskName (TID $taskId), reason: $killReason")
           setTaskFinishedAndClearInterruptStatus()
