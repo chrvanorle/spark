@@ -103,7 +103,7 @@ class ExecutorSuite extends SparkFunSuite with LocalSparkContext with MockitoSug
 
     var executor: Executor = null
     try {
-      executor = new Executor("id", "localhost", env, userClassPath = Nil, isLocal = true)
+      executor = new Executor("id", "localhost", env, userClassPath = Nil, isLocal = true, appId = "local-" + System.currentTimeMillis)
       // the task will be launched in a dedicated worker thread
       executor.launchTask(mockExecutorBackend, taskDescription)
 
@@ -293,7 +293,7 @@ class ExecutorSuite extends SparkFunSuite with LocalSparkContext with MockitoSug
     val timedOut = new AtomicBoolean(false)
     try {
       executor = new Executor("id", "localhost", SparkEnv.get, userClassPath = Nil, isLocal = true,
-        uncaughtExceptionHandler = mockUncaughtExceptionHandler)
+        uncaughtExceptionHandler = mockUncaughtExceptionHandler, appId = "local-" + System.currentTimeMillis)
       // the task will be launched in a dedicated worker thread
       executor.launchTask(mockBackend, taskDescription)
       if (killTask) {
