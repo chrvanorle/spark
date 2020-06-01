@@ -57,7 +57,7 @@ private[spark] class LocalEndpoint(
   val localExecutorHostname = "localhost"
 
   private val executor = new Executor(
-    localExecutorId, localExecutorHostname, SparkEnv.get, userClassPath, isLocal = true)
+    localExecutorId, localExecutorHostname, SparkEnv.get, userClassPath, isLocal = true, appId = executorBackend.getAppId())
 
   override def receive: PartialFunction[Any, Unit] = {
     case ReviveOffers =>
@@ -134,6 +134,10 @@ private[spark] class LocalSchedulerBackend(
 
   override def stop() {
     stop(SparkAppHandle.State.FINISHED)
+  }
+  
+  def getAppId(): String = {
+    appId
   }
 
   override def reviveOffers() {

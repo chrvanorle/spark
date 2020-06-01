@@ -276,10 +276,6 @@ private[spark] class Executor(
 
     def getThreadId: Long = threadId
 
-    def getStageId(): Int = {
-      taskDescription.stageId
-    }
-
     /** Whether this task has been finished. */
     @GuardedBy("TaskRunner.this")
     private var finished = false
