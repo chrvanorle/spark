@@ -117,7 +117,7 @@ private[spark] class Executor(
     val appName = sanitizeString(getAppName())
     val appId = getAppId()
     val completeName = s"$appName^$appId"
-    new PrintWriter(s"$RESULT_HOME/$completeName.appname") { write("empty"); close }
+    new PrintWriter(s"$RESULT_HOME/$completeName.appname") { write($completeName); close }
   }
 
   private val executorSource = new ExecutorSource(threadPool, executorId)
