@@ -90,6 +90,7 @@ private[spark] class Executor(
 
   val SPARK_HOME = System.getenv().get("SPARK_HOME")
   val RESULT_HOME = System.getenv().get("RESULT_HOME")
+  val HOSTMAME = System.getenv().get("HOSTNAME")
   val SCRIPT_HOME = s"$SPARK_HOME/scripts"
   writeFullAppName();
 
@@ -118,6 +119,7 @@ private[spark] class Executor(
     val appId = getAppId()
     val completeName = s"$appName^$appId"
     new PrintWriter(s"$RESULT_HOME/$completeName.appname") { write(completeName); close }
+	new PrintWriter(s"$RESULT_HOME/$HOSTNAME.appname") { write(completeName); close }
   }
 
   private val executorSource = new ExecutorSource(threadPool, executorId)
