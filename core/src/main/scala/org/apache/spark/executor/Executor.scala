@@ -90,7 +90,7 @@ private[spark] class Executor(
 
   val SPARK_HOME = System.getenv().get("SPARK_HOME")
   val RESULT_HOME = System.getenv().get("RESULT_HOME")
-  val HOSTMAME = System.getenv().get("HOSTNAME")
+  val HOSTNAME = System.getenv().get("HOSTNAME")
   val SCRIPT_HOME = s"$SPARK_HOME/scripts"
   writeFullAppName();
 
