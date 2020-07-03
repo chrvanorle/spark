@@ -62,7 +62,7 @@ class JobGenerator(jobScheduler: JobScheduler) extends Logging {
 
   // This is marked lazy so that this is initialized after checkpoint duration has been set
   // in the context and the generator has been started.
-  private lazy val shouldCheckpoint = ssc.checkpointDuration != null && ssc.checkpointDir != null
+  private lazy val shouldCheckpoint = false//ssc.checkpointDuration != null && ssc.checkpointDir != null
 
   private lazy val checkpointWriter = if (shouldCheckpoint) {
     new CheckpointWriter(this, ssc.conf, ssc.checkpointDir, ssc.sparkContext.hadoopConfiguration)
